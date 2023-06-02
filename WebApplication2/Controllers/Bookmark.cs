@@ -15,8 +15,7 @@ namespace MyApplication.Controllers
         {
             _logger = logger;
         }
-
-        [HttpPost]
+        [HttpPost("bookmark")]
         public IActionResult AddBookmark([FromBody] BookmarkRequest request)
         {
             _logger.LogInformation("AddBookmark API called with URL: {url}", request.Url);
@@ -30,14 +29,14 @@ namespace MyApplication.Controllers
             _logger.LogInformation("Bookmark added successfully: {url}", request.Url);
             return Ok();
         }
-        [HttpGet]
+        [HttpGet("checkbookmark")]
         public IActionResult GetBookmarks()
         {
             _logger.LogInformation("GetBookmarks API called");
 
             return Ok(_bookmarks);
         }
-        [HttpDelete]
+        [HttpDelete("delbookmark")]
         public IActionResult RemoveBookmark([FromQuery] string url)
         {
             _logger.LogInformation("RemoveBookmark API called with URL: {url}", url);
@@ -62,8 +61,6 @@ namespace MyApplication.Controllers
             }
         }
     }
-
-
     public class BookmarkRequest
     {
         public string Url { get; set; }

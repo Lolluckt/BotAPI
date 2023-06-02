@@ -5,7 +5,7 @@ using NewsAPI.Models;
 using NewsAPI.Constants;
 using System.Diagnostics.Metrics;
 using MyApplication.Helpers;
-
+using Npgsql;
 
 namespace MyApplication.Controllers
 {
@@ -21,7 +21,6 @@ namespace MyApplication.Controllers
             _logger = logger;
             _client = new HttpClient();
         }
-
         [HttpGet("querry")]
         public IActionResult GetNews([FromQuery] string q)
         {
@@ -38,14 +37,36 @@ namespace MyApplication.Controllers
             var articlesResponse = newsApiClient.GetEverything(new EverythingRequest
             {
                 Q = q,
+                SortBy = SortBys.Popularity,
                 Language = Languages.EN,
-                PageSize = 3
+                From = new DateTime(2023, 5, 25),
+                PageSize = 2
+               
             });
-
             if (articlesResponse.Status == Statuses.Ok)
             {
                 _logger.LogInformation("News retrieved successfully for query: {query}", q);
-                return Ok(articlesResponse.Articles);
+
+                // Добавление записей в базу данных
+                using (var connection = new NpgsqlConnection("Host=localhost;Port=5432;Database=newsdb;Username=postgres;Password=123456"))
+                {
+                    connection.Open();
+                    using (AppDbContext db = new AppDbContext())
+                    {
+                        List<Articles> articlesToAdd = new List<Articles>();
+
+                        foreach (var article in articlesResponse.Articles)
+                        {
+                            Articles article1 = new Articles { Title = article.Title, Description = article.Description };
+                            articlesToAdd.Add(article1);
+                        }
+
+                        db.Articles.AddRange(articlesToAdd);
+                        db.SaveChanges();
+                    }
+                }
+            
+            return Ok(articlesResponse.Articles);
             }
             else
             {
@@ -82,45 +103,34 @@ namespace MyApplication.Controllers
 
             if (articlesResponse.Status == Statuses.Ok)
             {
-                _logger.LogInformation("News retrieved successfully for country: {country}", country);
+                _logger.LogInformation("News retrieved successfully for query: {query}", countryCode);
+
+                // Добавление записей в базу данных
+                using (var connection = new NpgsqlConnection("Host=localhost;Port=5432;Database=newsdb;Username=postgres;Password=123456"))
+                {
+                    connection.Open();
+
+                    using (AppDbContext db = new AppDbContext())
+                    {
+                        List<Articles2> articlesToAdd = new List<Articles2>();
+
+                        foreach (var article in articlesResponse.Articles)
+                        {
+                            Articles2 article1 = new Articles2 { Title = article.Title, Description = article.Description, Country = countryCode};
+                            articlesToAdd.Add(article1);
+                        }
+
+                        db.Articles2.AddRange(articlesToAdd);
+                        db.SaveChanges();
+                    }
+                }
+
                 return Ok(articlesResponse.Articles);
             }
             else
             {
-                _logger.LogError("Failed to retrieve news for country: {country}. Error: {errorMessage}", country, articlesResponse.Error.Message);
-
+                _logger.LogError("Failed to retrieve news for query: {query}. Error: {errorMessage}", countryCode, articlesResponse.Error.Message);
                 return BadRequest("Ошибка при выполнении запроса: " + articlesResponse.Error.Message);
-            }
-        }
-        [HttpPost("NewsURL")]
-        public async Task<IActionResult> ExtractData([FromBody] ExtractRequest request)
-        {
-            _logger.LogInformation("ExtractData API called with URL: {url}", request.Url);
-
-            if (string.IsNullOrEmpty(request.Url))
-            {
-                _logger.LogWarning("Invalid URL: {url}", request.Url);
-                return BadRequest("URL не может быть пустым");
-            }
-
-            _client.DefaultRequestHeaders.Clear();
-            _client.DefaultRequestHeaders.Add("X-RapidAPI-Key", "5f4e4fdb5bmsh1467d5f260a96dep12da58jsn105fe83bc7ea");
-            _client.DefaultRequestHeaders.Add("X-RapidAPI-Host", "news-article-data-extract-and-summarization1.p.rapidapi.com");
-
-            var requestBody = new { url = request.Url };
-
-            try
-            {
-                var response = await _client.PostAsJsonAsync("https://news-article-data-extract-and-summarization1.p.rapidapi.com/extract/", requestBody);
-                response.EnsureSuccessStatusCode();
-
-                var responseBody = await response.Content.ReadAsStringAsync();
-                return Ok(responseBody);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Failed to extract data for URL: {url}. Error: {errorMessage}", request.Url, ex.Message);
-                return BadRequest("Ошибка при выполнении запроса: " + ex.Message);
             }
         }
         [HttpGet("location")]
@@ -143,13 +153,34 @@ namespace MyApplication.Controllers
                 var articlesResponse = newsApiClient.GetEverything(new EverythingRequest
                 {
                     Q = city,
+                    SortBy = SortBys.Relevancy,
                     Language = Languages.EN,
-                    PageSize = 2
+                    PageSize = 1
                 });
 
                 if (articlesResponse.Status == Statuses.Ok)
                 {
-                    _logger.LogInformation("News retrieved successfully for city: {city}", city);
+                    _logger.LogInformation("News retrieved successfully for query: {query}", city);
+
+                    using (var connection = new NpgsqlConnection("Host=localhost;Port=5432;Database=newsdb;Username=postgres;Password=123456"))
+                    {
+                        connection.Open();
+
+                        using (AppDbContext db = new AppDbContext())
+                        {
+                            List<Articles3> articlesToAdd = new List<Articles3>();
+
+                            foreach (var article in articlesResponse.Articles)
+                            {
+                                Articles3 article1 = new Articles3 { Title = article.Title, Description = article.Description, Location = city};
+                                articlesToAdd.Add(article1);
+                            }
+
+                            db.Articles3.AddRange(articlesToAdd);
+                            db.SaveChanges();
+                        }
+                    }
+
                     return Ok(new
                     {
                         Location = city,
@@ -170,13 +201,6 @@ namespace MyApplication.Controllers
         }
 
     }
-
-    public class ExtractRequest
-    {
-        public string Url { get; set; }
-    }
-
-
 }
 
 
